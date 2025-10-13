@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Magnetic Drawing</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    font-family: Arial, sans-serif;
+  }
+
+  .white-bar-left {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 574px;
+    height: 100vh;
+    background-color: white;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 40px;
+    box-sizing: border-box;
+    line-height: 1.5; /* algemene regelafstand */
+  }
+
+  .left-text-container {
+    width: calc(100% - 80px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* consistente verticale ruimte tussen regels */
+    line-height: 1.5; /* regelafstand consistent houden */
+  }
+
+  .white-bar-left-line {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 40px;
+    text-transform: uppercase;
+    color: black;
+    line-height: 1.5; /* regelafstand */
+  }
+
+  .left-text-line {
+    width: 100%;
+    font-size: 40px;
+    text-transform: uppercase;
+    color: black;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    justify-content: space-between;
+    box-sizing: border-box;
+    line-height: 1.5; /* regelafstand */
+  }
+
+  .left-text-line span {
+    display: inline-block;
+  }
+
+  .left-text-line .text {
+    flex-grow: 1;
+    text-align: center;
+    transition: color 0.3s ease;
+  }
+
+  .left-text-line:hover {
+    text-decoration: underline;
+  }
+
+  .black-strip-left {
+    position: absolute;
+    top: 0;
+    left: 574px;
+    width: 0.5px;
+    height: 100vh;
+    background-color: black;
+    z-index: 25;
+  }
+
+  .white-bar-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 40px;
+    background-color: white;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .white-bar-top span {
+    font-size: 40px;
+    text-transform: uppercase;
+    color: black;
+  }
+
+  .black-strip-top {
+    position: absolute;
+    top: 40px;
+    left: 0;
+    width: 100vw;
+    height: 0.5px;
+    background-color: black;
+    z-index: 35;
+  }
+
+  .white-bar-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 40px;
+    background-color: white;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+  }
+
+  .white-bar-bottom span {
+    font-size: 32px;
+    text-transform: uppercase;
+    color: black;
+    white-space: nowrap;
+  }
+
+  .black-strip-bottom {
+    position: absolute;
+    bottom: 40px;
+    left: 0;
+    width: 100vw;
+    height: 0.5px;
+    background-color: black;
+    z-index: 35;
+  }
+
+  svg {
+    display: block;
+    background-color: white;
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+  }
+
+  polygon {
+    stroke: black;
+    stroke-width: 0.5px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="white-bar-left">
+    <div class="left-text-container">
+      <div class="white-bar-left-line">
+        <span>DRAWS</span><span>LIKE</span><span>MAGIC!</span>
+      </div>
+      <div class="white-bar-left-line">
+        <span>ERASES</span><span>LIKE</span><span>MAGIC!</span>
+      </div>
+      <div class="button-container">
+        <div class="left-text-line" id="colorsButton">
+          <span>(</span>
+          <span class="text">COLORS</span>
+          <span>)</span>
+        </div>
+        <div class="left-text-line" id="brushSizeButton">
+          <span>(</span>
+          <span class="text">BRUSH SIZE</span>
+          <span>)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="black-strip-left"></div>
+  <div class="white-bar-top"><span>Magnetic Drawing</span></div>
+  <div class="black-strip-top"></div>
+
+  <div class="white-bar-bottom">
+    <span>AGES 3 AND UP</span>
+    <span id="eraseText" style="text-align: right;">&lt;&lt; ERASE!</span>
+  </div>
+  <div class="black-strip-bottom"></div>
+
+  <svg id="hexGrid"><defs></defs></svg>
+
+<script>
+  const svg = document.getElementById("hexGrid");
+  const size = 10;
+  const hexWidth = Math.sqrt(3) * size;
+  const hexHeight = 2 * size;
+  const horizDist = hexWidth;
+  const vertDist = 0.75 * hexHeight;
+  const leftOffset = 574 + 0.5;
+  const topOffset = 40 + 0.5;
+  const bottomOffset = 40 + 0.5;
+
+  let cols = Math.ceil((window.innerWidth - leftOffset) / horizDist) + 2;
+  let rows = Math.ceil((window.innerHeight - topOffset - bottomOffset) / vertDist) + 2;
+
+  const hexes = [];
+  const hexMap = new Map();
+
+  let mouseDown = false;
+  let currentEntry = null;
+
+  const colors = ["black", "red", "blue", "yellow", "green", "orange", "pink", "purple", "brown"];
+  let currentColorIndex = 0;
+  let currentColor = colors[currentColorIndex];
+
+  const brushSizes = ["Small", "Medium", "Large"];
+  let brushIndex = 0;
+  let brushRadius = 0;
+
+  document.body.onmousedown = () => mouseDown = true;
+  document.body.onmouseup = () => {
+    mouseDown = false;
+    currentEntry = null;
+  };
+
+  const colorsButton = document.getElementById("colorsButton");
+  const colorsText = colorsButton.querySelector(".text");
+  colorsButton.addEventListener("click", () => {
+    currentColorIndex = (currentColorIndex + 1) % colors.length;
+    currentColor = colors[currentColorIndex];
+    colorsText.textContent = `COLORS (${currentColor.toUpperCase()})`;
+    colorsText.style.color = currentColor;
+  });
+
+  const brushButton = document.getElementById("brushSizeButton");
+  const brushText = brushButton.querySelector(".text");
+  brushButton.addEventListener("click", () => {
+    brushIndex = (brushIndex + 1) % brushSizes.length;
+    brushRadius = brushIndex;
+    brushText.textContent = `BRUSH SIZE (${brushSizes[brushIndex].toUpperCase()})`;
+  });
+
+  function createHex(x, y, row, col) {
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 180 * (60 * i - 30);
+      const px = x + size * Math.cos(angle);
+      const py = y + size * Math.sin(angle);
+      points.push([px, py]);
+    }
+    const pointStr = points.map(p => p.join(",")).join(" ");
+    const hex = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    hex.setAttribute("points", pointStr);
+    hex.dataset.row = row;
+    hex.dataset.col = col;
+    hex.style.fill = "white";
+    hex.centerX = x;
+    hex.centerY = y;
+
+    hex.addEventListener("mouseenter", (e) => {
+      if (mouseDown) {
+        currentEntry = { x: e.clientX, y: e.clientY };
+      }
+    });
+
+    hex.addEventListener("mouseleave", (e) => {
+      if (mouseDown && currentEntry) {
+        const centerRow = parseInt(hex.dataset.row);
+        const centerCol = parseInt(hex.dataset.col);
+        const affected = getBrushHexes(centerRow, centerCol, brushRadius);
+        for (const h of affected) {
+          if (!h) continue;
+          applyGradient(h, currentEntry, { x: e.clientX, y: e.clientY });
+        }
+        currentEntry = null;
+      }
+    });
+
+    return hex;
+  }
+
+  function getBrushHexes(centerRow, centerCol, radius) {
+    const result = [];
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        const r = centerRow + dr;
+        const c = centerCol + dc;
+        const key = `${r},${c}`;
+        if (hexMap.has(key)) {
+          result.push(hexMap.get(key));
+        }
+      }
+    }
+    return result;
+  }
+
+  function applyGradient(hex, entry, exit) {
+    const dx = exit.x - entry.x;
+    const dy = exit.y - entry.y;
+    const mag = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / mag;
+    const uy = dy / mag;
+
+    const x1 = 50 + ux * 50;
+    const y1 = 50 + uy * 50;
+    const x2 = 50 - ux * 50;
+    const y2 = 50 - uy * 50;
+
+    const oldGradId = hex.getAttribute("data-gradient-id");
+    if (oldGradId) {
+      const oldGrad = document.getElementById(oldGradId);
+      if (oldGrad) oldGrad.remove();
+    }
+
+    const gradId = `grad-${Date.now()}-${Math.random()}`;
+    const grad = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+    grad.setAttribute("id", gradId);
+    grad.setAttribute("x1", `${x1}%`);
+    grad.setAttribute("y1", `${y1}%`);
+    grad.setAttribute("x2", `${x2}%`);
+    grad.setAttribute("y2", `${y2}%`);
+
+    const stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+    stop1.setAttribute("offset", "0%");
+    stop1.setAttribute("stop-color", currentColor);
+    stop1.setAttribute("stop-opacity", "1");
+
+    const stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+    stop2.setAttribute("offset", "100%");
+    stop2.setAttribute("stop-color", "white");
+    stop2.setAttribute("stop-opacity", "1");
+
+    grad.appendChild(stop1);
+    grad.appendChild(stop2);
+    svg.querySelector("defs").appendChild(grad);
+
+    hex.setAttribute("data-gradient-id", gradId);
+    hex.style.fill = `url(#${gradId})`;
+  }
+
+  for (let row = 0; row < rows; row++) {
+    const y = topOffset + row * vertDist;
+    for (let col = 0; col < cols; col++) {
+      const x = leftOffset + col * horizDist + (row % 2 === 1 ? horizDist / 2 : 0);
+      const hex = createHex(x, y, row, col);
+      const key = `${row},${col}`;
+      hexMap.set(key, hex);
+      svg.appendChild(hex);
+      hexes.push(hex);
+    }
+  }
+
+  window.addEventListener("mousemove", (e) => {
+    hexes.forEach(hex => {
+      const gradId = hex.getAttribute("data-gradient-id");
+      const grad = gradId && document.getElementById(gradId);
+      if (!grad) return;
+
+      const dx = e.clientX - hex.centerX;
+      const dy = e.clientY - hex.centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 100) {
+        const ux = dx / dist;
+        const uy = dy / dist;
+        const x1 = 50 + ux * 50;
+        const y1 = 50 + uy * 50;
+        const x2 = 50 - ux * 50;
+        const y2 = 50 - uy * 50;
+
+        grad.setAttribute("x1", `${x1}%`);
+        grad.setAttribute("y1", `${y1}%`);
+        grad.setAttribute("x2", `${x2}%`);
+        grad.setAttribute("y2", `${y2}%`);
+      }
+    });
+  });
+
+  window.addEventListener("resize", () => {
+    cols = Math.ceil((window.innerWidth - leftOffset) / horizDist) + 2;
+    rows = Math.ceil((window.innerHeight - topOffset - bottomOffset) / vertDist) + 2;
+    const maxX = window.innerWidth;
+
+    hexes.forEach(hex => {
+      if (hex.centerX > maxX) {
+        const gradId = hex.getAttribute("data-gradient-id");
+        if (gradId) {
+          const grad = document.getElementById(gradId);
+          if (grad) grad.remove();
+          hex.removeAttribute("data-gradient-id");
+        }
+        hex.style.fill = "white";
+      }
+    });
+
+    updateEraseText();
+  });
+
+  function updateEraseText() {
+    const eraseText = document.getElementById("eraseText");
+    if (window.innerWidth <= 574) {
+      eraseText.textContent = ">>";
+    } else {
+      eraseText.textContent = "<< ERASE!";
+    }
+  }
+
+  window.addEventListener("resize", updateEraseText);
+
+  updateEraseText();
+</script>
+</body>
+</html>
